@@ -2,6 +2,7 @@
 #include "TLx493D_inc.hpp"
 #include <SimpleKalmanFilter.h>
 #include <OneButton.h>
+#include <Adafruit_NeoPixel.h>
 
 //--------------------------------------------------------------------+
 // MSC RAM Disk Config
@@ -27,10 +28,12 @@ using namespace ifx::tlx493d;
 /* Definition of the power pin and sensor objects for Kit2Go XMC1100 boards. */
 const uint8_t POWER_PIN = 15; // XMC1100 : LED2
 
-// some board swith multiple I2C need Wire --> Wire1
-TLx493D_A1B6 mag(Wire1, TLx493D_IIC_ADDR_A0_e);
+// WS2812B LED configuration
+#define LED_PIN 6       // Pin connected to the data line of WS2812B LEDs
+#define NUM_LEDS 3      // Number of WS2812B LEDs
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-//Tlv493d mag = Tlv493d();
+TLx493D_A1B6 mag(Wire1, TLx493D_IIC_ADDR_A0_e);
 SimpleKalmanFilter xFilter(1, 1, 0.2), yFilter(1, 1, 0.2), zFilter(1, 1, 0.2);
 
 // Setup buttons
@@ -79,7 +82,15 @@ void calibrate() {
   xOffset = xOffset / calSamples;
   yOffset = yOffset / calSamples;
   zOffset = zOffset / calSamples;
+}
 
+// Function to set LEDs to cyan (#00FFFF)
+void setLEDsCyan() {
+  uint32_t cyan = strip.Color(0, 255, 255); // RGB: 0, 255, 255
+  for (int i = 0; i < NUM_LEDS; i++) {
+    strip.setPixelColor(i, cyan);
+  }
+  strip.show();
 }
 
 // the setup routine runs once when you press reset:
@@ -108,6 +119,11 @@ void setup() {
 
   button1.attachClick(btn1);
   button2.attachClick(btn2);
+
+  // Initialize LEDs
+  strip.begin();
+  strip.show(); // Turn off all LEDs initially
+  setLEDsCyan(); // Set LEDs to cyan
 }
 
 void process_hid(int x, int y) {
@@ -142,7 +158,7 @@ void getMagnet() {
     xMove = map(xCurrent, -inRange, inRange, -outRange, outRange);
     yMove = map(yCurrent, -inRange, inRange, -outRange, outRange);
 
-    // press shift to orbit in Fusion 360 if the pan threshold is not corssed (zAxis)
+    // press shift to orbit in Fusion 360 if the pan threshold is not crossed (zAxis)
     if (abs(zCurrent) > zThreshold)
     {
       usb_hid.keyboardReport(RID_KEYBOARD, KEYBOARD_MODIFIER_LEFTSHIFT, key_none);
@@ -150,7 +166,7 @@ void getMagnet() {
       ms2 = millis();
     }
 
-    // pan or orbit by holding the middle mouse button and moving propotionaly to the xy axis
+    // pan or orbit by holding the middle mouse button and moving proportionally to the xy axis
     ms = millis();
     process_hid(xMove, -yMove);
   }
@@ -171,8 +187,10 @@ void getMagnet() {
 
   Serial.print(xCurrent);
   Serial.print(",");
+
   Serial.print(yCurrent);
   Serial.print(",");
+
   Serial.print(zCurrent);
   Serial.println();
 } 
@@ -192,6 +210,7 @@ void loop() {
   if (!TinyUSBDevice.mounted()) {
     return;
   }
+
   getMagnet();
 }
 
